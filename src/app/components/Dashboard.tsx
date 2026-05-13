@@ -21,13 +21,7 @@ type Phase = 'idle' | 'ringing' | 'challenge' | 'summary';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const QUESTIONS = [
-  { id: 1, question: 'What is 15 + 27?',               answer: '42' },
-  { id: 2, question: 'What is 8 × 7?',                 answer: '56' },
-  { id: 3, question: 'Spell "ALARM" backwards.',        answer: 'MRALA' },
-  { id: 4, question: 'What is the square root of 81?', answer: '9' },
-  { id: 5, question: 'What is 100 ÷ 4?',              answer: '25' },
-];
+
 
 const emotionThemes: Record<string, { color: string; bg: string; message: string; subtext: string }> = {
   neutral:   { color: '#00d4ff', bg: 'rgba(0,212,255,0.05)',   message: 'State: Normal',       subtext: 'You are in your optimal productivity zone.'   },
