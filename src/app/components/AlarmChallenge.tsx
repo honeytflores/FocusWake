@@ -12,10 +12,13 @@ interface Question {
 
 interface AlarmChallengeProps {
   onComplete: (completionTime: number, moodHistory: string[]) => void;
-  modelsLoaded: boolean; // pass from parent so we don't reload models
+  modelsLoaded: boolean;
 }
 
-// ─── Emotion config (keep in sync with Dashboard.tsx) ────────────────────────
+// ─── Emotion config (focused on target states) ────────────────────────────────
+
+const TARGET_EMOTIONS = ['angry', 'fearful', 'disgusted', 'sad'] as const;
+type TargetEmotion = typeof TARGET_EMOTIONS[number];
 
 const emotionThemes: Record<string, { color: string; bg: string; border: string; message: string; subtext: string }> = {
   neutral:   { color: '#00d4ff', bg: 'rgba(0,212,255,0.06)',   border: 'rgba(0,212,255,0.25)',   message: 'Normal',       subtext: 'You are in your optimal zone.'            },
@@ -23,13 +26,14 @@ const emotionThemes: Record<string, { color: string; bg: string; border: string;
   fearful:   { color: '#ffb366', bg: 'rgba(255,179,102,0.08)', border: 'rgba(255,179,102,0.3)',  message: 'Anxiety',      subtext: 'Focus on the next small step.'              },
   disgusted: { color: '#ffff66', bg: 'rgba(255,255,102,0.08)', border: 'rgba(255,255,102,0.25)', message: 'Annoyance',    subtext: 'Clear the noise and reset.'                },
   sad:       { color: '#99ff99', bg: 'rgba(153,255,153,0.08)', border: 'rgba(153,255,153,0.25)', message: 'Fatigue',      subtext: 'Rest is productive.'                       },
-  surprised: { color: '#cc99ff', bg: 'rgba(204,153,255,0.08)', border: 'rgba(204,153,255,0.25)', message: 'Surprise',     subtext: 'Something caught your attention!'           },
-  happy:     { color: '#ffd700', bg: 'rgba(255,215,0,0.08)',   border: 'rgba(255,215,0,0.25)',   message: 'Happy',        subtext: 'Great energy! Keep it up.'                 },
+  // Fallbacks for non-target emotions
+  surprised: { color: '#00d4ff', bg: 'rgba(0,212,255,0.06)',   border: 'rgba(0,212,255,0.25)',   message: 'Normal',       subtext: 'You are in your optimal zone.'            },
+  happy:     { color: '#00d4ff', bg: 'rgba(0,212,255,0.06)',   border: 'rgba(0,212,255,0.25)',   message: 'Normal',       subtext: 'You are in your optimal zone.'            },
 };
 
 const EMOTION_ICONS: Record<string, string> = {
   neutral: '😐', angry: '😤', fearful: '😰', disgusted: '😒',
-  sad: '😴', surprised: '😲', happy: '😊',
+  sad: '😴', surprised: '😐', happy: '😐',
 };
 
 // ─── Question bank ────────────────────────────────────────────────────────────
@@ -60,6 +64,18 @@ function getFullQuestionBank(): Question[] {
   ];
 }
 
+// ─── Helper: Map detected emotion to target state or neutral ─────────────────
+function mapToTargetEmotion(detected: string, expressions: Record<string, number>): string {
+  // Only update if it's a target emotion AND confidence > threshold
+  const CONFIDENCE_THRESHOLD = 0.6;
+  
+  if (TARGET_EMOTIONS.includes(detected as TargetEmotion) && expressions[detected] > CONFIDENCE_THRESHOLD) {
+    return detected;
+  }
+  // For non-target emotions or low confidence, show neutral
+  return 'neutral';
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps) {
@@ -76,6 +92,7 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
   const [currentEmotion, setCurrentEmotion] = useState('neutral');
   const [moodHistory, setMoodHistory]       = useState<string[]>([]);
   const [cameraReady, setCameraReady]       = useState(false);
+  const [isTargetEmotion, setIsTargetEmotion] = useState(false); // Visual feedback flag
 
   const theme = emotionThemes[currentEmotion] ?? emotionThemes['neutral'];
 
@@ -101,21 +118,37 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
     };
   }, []);
 
-  // ── face-api detection ──
+  // ── face-api detection (filtered for target emotions) ──
   const handleVideoPlay = useCallback(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
+    
     intervalRef.current = setInterval(async () => {
       if (!videoRef.current || !modelsLoaded) return;
+      
       try {
         const detections = await faceapi
           .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions())
           .withFaceExpressions();
+          
         if (detections.length > 0) {
           const expressions = detections[0].expressions;
           const best = (Object.entries(expressions) as [string, number][])
             .reduce((a, b) => a[1] > b[1] ? a : b);
-          setCurrentEmotion(best[0]);
-          setMoodHistory(h => [...h.slice(-19), best[0]]);
+            
+          const [detectedEmotion, confidence] = best;
+          const mappedEmotion = mapToTargetEmotion(detectedEmotion, expressions);
+          
+          setCurrentEmotion(mappedEmotion);
+          setIsTargetEmotion(TARGET_EMOTIONS.includes(mappedEmotion as TargetEmotion));
+          
+          // Only log target emotions or significant changes to history
+          setMoodHistory(h => {
+            const last = h[h.length - 1];
+            if (mappedEmotion !== last || TARGET_EMOTIONS.includes(mappedEmotion as TargetEmotion)) {
+              return [...h.slice(-19), mappedEmotion];
+            }
+            return h;
+          });
         }
       } catch { /* ignore mid-unmount errors */ }
     }, 500);
@@ -144,7 +177,7 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
         onComplete(completionTime, [...moodHistory, currentEmotion]);
       }
     } else {
-      setError('Incorrect! Moving to the end...');
+      setError('Incorrect! Question moved to end.');
       setTimeout(() => {
         const updatedQuestions = [...activeQuestions];
         const missed = updatedQuestions.shift()!;
@@ -167,8 +200,14 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
 
         {/* ── Emotion analysis banner ── */}
         <div
-          className="w-full mb-10 rounded-2xl overflow-hidden border transition-all duration-700"
-          style={{ borderColor: theme.border, backgroundColor: theme.bg }}
+          className={`w-full mb-10 rounded-2xl overflow-hidden border transition-all duration-700 ${
+            isTargetEmotion ? 'ring-2 ring-offset-2 ring-offset-[#1a1a1f]' : ''
+          }`}
+          style={{ 
+            borderColor: theme.border, 
+            backgroundColor: theme.bg,
+            ringColor: theme.color 
+          }}
         >
           <div className="flex items-stretch">
 
@@ -197,17 +236,24 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
                   animation: 'scanline 2.5s linear infinite',
                 }}
               />
+              {/* Target emotion indicator */}
+              {isTargetEmotion && (
+                <div 
+                  className="absolute top-2 right-2 w-3 h-3 rounded-full animate-ping"
+                  style={{ backgroundColor: theme.color }}
+                />
+              )}
             </div>
 
             {/* Emotion readout */}
             <div className="flex-1 px-5 py-4 flex flex-col justify-center">
               <div className="flex items-center gap-2 mb-1">
                 <span
-                  className="w-2 h-2 rounded-full animate-pulse shrink-0"
+                  className={`w-2 h-2 rounded-full shrink-0 ${isTargetEmotion ? 'animate-pulse' : ''}`}
                   style={{ backgroundColor: theme.color }}
                 />
                 <span className="text-[10px] uppercase tracking-[0.2em] font-bold" style={{ color: theme.color }}>
-                  Live Analysis
+                  {isTargetEmotion ? '⚠️ Alert State' : 'Live Analysis'}
                 </span>
               </div>
               <div className="flex items-baseline gap-3">
@@ -231,7 +277,10 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
                       key={i}
                       title={m}
                       className="text-sm leading-none"
-                      style={{ opacity: 0.3 + (i / 10) * 0.7 }}
+                      style={{ 
+                        opacity: 0.3 + (i / 10) * 0.7,
+                        color: TARGET_EMOTIONS.includes(m as TargetEmotion) ? emotionThemes[m].color : '#666677'
+                      }}
                     >
                       {EMOTION_ICONS[m] ?? '😐'}
                     </span>
