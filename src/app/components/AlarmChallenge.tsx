@@ -156,38 +156,45 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
 
   // ── Answer submit ──
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (activeQuestions.length === 0 || error) return;
+  e.preventDefault();
+  // Prevent multiple clicks during the error/success pause
+  if (activeQuestions.length === 0 || error) return;
 
-    const currentQuestion = activeQuestions[0];
-    const userAnswer   = answer.toLowerCase().trim();
-    const correctAnswer = currentQuestion.answer.toLowerCase().trim();
+  const currentQuestion = activeQuestions[0];
+  const userAnswer = answer.toLowerCase().trim();
+  const correctAnswer = currentQuestion.answer.toLowerCase().trim();
 
-    if (userAnswer === correctAnswer) {
+  if (userAnswer === correctAnswer) {
+    // SUCCESS PATH
+    const updatedQuestions = [...activeQuestions];
+    updatedQuestions.shift(); // Remove the current question
+    
+    setCompletedCount(prev => prev + 1);
+    setAnswer('');
+    setError('');
+    setActiveQuestions(updatedQuestions);
+
+    // If no more questions, trigger completion
+    if (updatedQuestions.length === 0) {
+      const completionTime = Math.floor((Date.now() - startTime) / 1000);
+      onComplete(completionTime, [...moodHistory, currentEmotion]);
+    }
+  } else {
+    // ERROR PATH: Re-queue logic
+    setError('Incorrect! Question moved to end.');
+    
+    // Disable input briefly so user sees the error
+    setTimeout(() => {
       const updatedQuestions = [...activeQuestions];
-      updatedQuestions.shift();
+      const missedQuestion = updatedQuestions.shift()!; // Remove from front
+      updatedQuestions.push(missedQuestion);           // Add to back
+      
       setActiveQuestions(updatedQuestions);
-      const newCount = completedCount + 1;
-      setCompletedCount(newCount);
       setAnswer('');
       setError('');
-
-      if (updatedQuestions.length === 0) {
-        const completionTime = Math.floor((Date.now() - startTime) / 1000);
-        onComplete(completionTime, [...moodHistory, currentEmotion]);
-      }
-    } else {
-      setError('Incorrect! Question moved to end.');
-      setTimeout(() => {
-        const updatedQuestions = [...activeQuestions];
-        const missed = updatedQuestions.shift()!;
-        updatedQuestions.push(missed);
-        setActiveQuestions(updatedQuestions);
-        setAnswer('');
-        setError('');
-      }, 1500);
-    }
-  };
+    }, 1500); // 1.5 second penalty/wait time
+  }
+};
 
   if (activeQuestions.length === 0) return null;
 
