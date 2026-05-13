@@ -91,21 +91,29 @@ function RingingOverlay({ alarmLabel, onSnooze, onDismiss }: {
   );
 }
 
-/** Question panel with queue loop */
+/** Question panel with queue loop — camera feed embedded inline */
 function ChallengePanel({
   currentEmotion,
+  videoRef,
+  isCameraOn,
+  onVideoPlay,
   onComplete,
 }: {
   currentEmotion: string;
+  videoRef: React.RefObject<HTMLVideoElement>;
+  isCameraOn: boolean;
+  onVideoPlay: () => void;
   onComplete: (moodHistory: string[]) => void;
 }) {
-  const [queue, setQueue]           = useState([...QUESTIONS]);
-  const [currentIdx, setCurrentIdx] = useState(0);
-  const [input, setInput]           = useState('');
-  const [feedback, setFeedback]     = useState<'correct' | 'wrong' | null>(null);
+  const [queue, setQueue]               = useState([...QUESTIONS]);
+  const [currentIdx, setCurrentIdx]     = useState(0);
+  const [input, setInput]               = useState('');
+  const [feedback, setFeedback]         = useState<'correct' | 'wrong' | null>(null);
   const [totalCorrect, setTotalCorrect] = useState(0);
-  const [wrongCount, setWrongCount] = useState(0);
-  const [moodHistory, setMoodHistory] = useState<string[]>([]);
+  const [wrongCount, setWrongCount]     = useState(0);
+  const [moodHistory, setMoodHistory]   = useState<string[]>([]);
+
+  const theme = emotionThemes[currentEmotion] ?? emotionThemes['neutral'];
 
   // Accumulate mood every 3 s while challenge is open
   useEffect(() => {
@@ -119,7 +127,6 @@ function ChallengePanel({
     if (feedback) return;
     const q = queue[currentIdx];
     const correct = input.trim().toLowerCase() === q.answer.toLowerCase();
-
     setFeedback(correct ? 'correct' : 'wrong');
 
     setTimeout(() => {
@@ -128,7 +135,6 @@ function ChallengePanel({
         setTotalCorrect(newCorrect);
         const newQueue = queue.filter((_, i) => i !== currentIdx);
         if (newQueue.length === 0) {
-          // All answered — finish
           onComplete([...moodHistory, currentEmotion]);
           return;
         }
@@ -136,7 +142,6 @@ function ChallengePanel({
         setCurrentIdx(i => Math.min(i, newQueue.length - 1));
       } else {
         setWrongCount(w => w + 1);
-        // Re-append wrong question to end
         const newQueue = [...queue];
         const [missed] = newQueue.splice(currentIdx, 1);
         newQueue.push(missed);
@@ -152,69 +157,129 @@ function ChallengePanel({
   const progress = (totalCorrect / QUESTIONS.length) * 100;
 
   return (
-    <div className="bg-[#1f1f27] p-8 rounded-2xl border border-[#2a2a32] flex flex-col justify-between h-full min-h-[340px]">
-      {/* Header */}
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-2">
-            <Activity size={14} className="text-[#888899]" />
-            <span className="text-[10px] uppercase tracking-[0.2em] text-[#888899] font-bold">
-              Verification Task
-            </span>
-          </div>
-          <span className="text-[10px] text-[#555566] font-mono">
-            {totalCorrect}/{QUESTIONS.length} correct
-            {wrongCount > 0 && (
-              <span className="ml-2 text-[#ff9944]">↩ {wrongCount} re-queued</span>
-            )}
-          </span>
-        </div>
+    <div className="bg-[#0e0e16] rounded-2xl border border-[#2a2a32] overflow-hidden w-full">
+      <div className="flex flex-col md:flex-row">
 
-        {/* Progress bar */}
-        <div className="w-full h-1 bg-[#141419] rounded-full mb-6 overflow-hidden">
+        {/* ── Left: live camera feed ── */}
+        <div className="relative md:w-72 lg:w-80 shrink-0 bg-black aspect-video md:aspect-auto">
+          {isCameraOn ? (
+            <video
+              ref={videoRef}
+              onPlay={onVideoPlay}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover opacity-90"
+              style={{ transform: 'scaleX(-1)' }}
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center text-[#333344] min-h-[200px]">
+              <CameraOff size={24} className="mb-2" />
+              <span className="text-[10px] uppercase tracking-widest">Feed Offline</span>
+            </div>
+          )}
+
+          {/* Emotion badge — pinned over the video */}
           <div
-            className="h-full bg-[#00d4ff] rounded-full transition-all duration-500"
-            style={{ width: `${progress}%` }}
-          />
+            className="absolute top-3 left-3 right-3 flex items-center gap-2 px-3 py-2 rounded-xl border"
+            style={{ background: 'rgba(0,0,0,0.72)', borderColor: `${theme.color}44` }}
+          >
+            <span className="text-xl leading-none">{EMOTION_ICONS[currentEmotion] ?? '😐'}</span>
+            <div className="flex flex-col leading-tight">
+              <span className="text-[10px] uppercase tracking-widest font-bold" style={{ color: theme.color }}>
+                {theme.message}
+              </span>
+              <span className="text-[9px] text-[#555566]">{theme.subtext}</span>
+            </div>
+            <span
+              className="ml-auto w-2 h-2 rounded-full animate-pulse shrink-0"
+              style={{ background: theme.color }}
+            />
+          </div>
+
+          {/* Mood history strip at bottom */}
+          {moodHistory.length > 0 && (
+            <div className="absolute bottom-0 left-0 right-0 px-3 py-2 flex gap-1 flex-wrap bg-gradient-to-t from-black/60 to-transparent">
+              {moodHistory.slice(-10).map((m, i) => (
+                <span
+                  key={i}
+                  title={m}
+                  className="text-base"
+                  style={{ opacity: 0.35 + (i / 10) * 0.65 }}
+                >
+                  {EMOTION_ICONS[m] ?? '😐'}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Question */}
-        <p className="text-[10px] text-[#444455] uppercase tracking-widest mb-1 font-mono">
-          Question {currentIdx + 1} of {queue.length}
-        </p>
-        <p className="text-xl font-bold text-[#e5e5e5] mb-6 leading-snug">{q?.question}</p>
-      </div>
+        {/* ── Right: question + answer ── */}
+        <div className="flex-1 p-6 flex flex-col justify-between">
+          {/* Header row */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <Activity size={13} className="text-[#888899]" />
+                <span className="text-[10px] uppercase tracking-[0.2em] text-[#888899] font-bold">
+                  Verification Task
+                </span>
+              </div>
+              <span className="text-[10px] text-[#555566] font-mono">
+                {totalCorrect}/{QUESTIONS.length} correct
+                {wrongCount > 0 && (
+                  <span className="ml-2 text-[#ff9944]">↩ {wrongCount} re-queued</span>
+                )}
+              </span>
+            </div>
 
-      {/* Input + feedback */}
-      <div>
-        <input
-          type="text"
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-          placeholder="Type your answer…"
-          disabled={!!feedback}
-          className="w-full bg-[#141419] border border-[#2a2a32] p-4 rounded-xl outline-none focus:border-[#00d4ff] mb-3 text-[#e5e5e5] placeholder-[#444455] transition-colors"
-        />
+            {/* Progress bar */}
+            <div className="w-full h-1 bg-[#141419] rounded-full mb-5 overflow-hidden">
+              <div
+                className="h-full bg-[#00d4ff] rounded-full transition-all duration-500"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
 
-        {feedback === 'correct' && (
-          <div className="flex items-center gap-2 mb-3 text-[#22c55e] text-sm">
-            <CheckCircle size={14} /> Correct!
+            {/* Question */}
+            <p className="text-[10px] text-[#444455] uppercase tracking-widest mb-1 font-mono">
+              Question {currentIdx + 1} of {queue.length}
+            </p>
+            <p className="text-xl font-bold text-[#e5e5e5] mb-5 leading-snug">{q?.question}</p>
           </div>
-        )}
-        {feedback === 'wrong' && (
-          <div className="flex items-center gap-2 mb-3 text-[#ef4444] text-sm">
-            <XCircle size={14} /> Incorrect — question added back to the queue
-          </div>
-        )}
 
-        <button
-          onClick={handleSubmit}
-          disabled={!!feedback || !input.trim()}
-          className="w-full py-4 bg-[#00d4ff] text-black font-bold rounded-xl hover:bg-[#00b8e6] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          Submit
-        </button>
+          {/* Input + submit */}
+          <div>
+            <input
+              type="text"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+              placeholder="Type your answer…"
+              disabled={!!feedback}
+              className="w-full bg-[#141419] border border-[#2a2a32] p-4 rounded-xl outline-none focus:border-[#00d4ff] mb-3 text-[#e5e5e5] placeholder-[#444455] transition-colors"
+            />
+
+            {feedback === 'correct' && (
+              <div className="flex items-center gap-2 mb-3 text-[#22c55e] text-sm">
+                <CheckCircle size={14} /> Correct!
+              </div>
+            )}
+            {feedback === 'wrong' && (
+              <div className="flex items-center gap-2 mb-3 text-[#ef4444] text-sm">
+                <XCircle size={14} /> Incorrect — question added back to the queue
+              </div>
+            )}
+
+            <button
+              onClick={handleSubmit}
+              disabled={!!feedback || !input.trim()}
+              className="w-full py-4 bg-[#00d4ff] text-black font-bold rounded-xl hover:bg-[#00b8e6] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Submit
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -471,87 +536,93 @@ export function Dashboard({ userName, setUserName, onStartAlarm }: DashboardProp
           </button>
         </div>
 
-        {/* ── Top grid: Camera + Challenge/Summary/Idle ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* ── Top section — layout shifts by phase ── */}
+        <div className="mb-8">
 
-          {/* Camera feed */}
-          <div className="relative rounded-2xl overflow-hidden bg-black border border-[#2a2a32] shadow-xl aspect-video">
-            {isCameraOn ? (
-              <video
-                ref={videoRef}
-                onPlay={handleVideoPlay}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover opacity-90"
-                style={{ transform: 'scaleX(-1)' }}
-              />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center text-[#333344]">
-                <CameraOff size={28} className="mb-2" />
-                <span className="text-[10px] uppercase tracking-widest">Feed Offline</span>
-              </div>
-            )}
-
-            {/* Emotion overlay */}
-            <div className="absolute top-3 left-3 flex items-center gap-2 bg-black/60 px-2.5 py-1.5 rounded-lg">
-              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: theme.color }} />
-              <span className="text-[10px] font-mono" style={{ color: theme.color }}>
-                {currentEmotion.toUpperCase()}
-              </span>
-            </div>
-
-            {/* Mood timeline dots */}
-            {moodHistory.length > 0 && (
-              <div className="absolute bottom-10 left-3 right-3 flex gap-1 flex-wrap">
-                {moodHistory.slice(-12).map((m, i) => (
-                  <span
-                    key={i}
-                    title={m}
-                    className="text-sm"
-                    style={{ opacity: 0.4 + (i / 12) * 0.6 }}
-                  >
-                    {EMOTION_ICONS[m] ?? '😐'}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Camera toggle */}
-            <button
-              onClick={() => setIsCameraOn(v => !v)}
-              className="absolute bottom-3 right-3 p-2 bg-white/10 backdrop-blur-sm rounded-full hover:bg-white/20 transition-colors"
-              title={isCameraOn ? 'Turn off camera' : 'Turn on camera'}
-            >
-              {isCameraOn
-                ? <Camera size={16} className="text-white" />
-                : <CameraOff size={16} className="text-[#666677]" />
-              }
-            </button>
-          </div>
-
-          {/* Right panel — switches by phase */}
+          {/* CHALLENGE: full-width panel with camera embedded inside */}
           {phase === 'challenge' && (
             <ChallengePanel
               currentEmotion={currentEmotion}
+              videoRef={videoRef}
+              isCameraOn={isCameraOn}
+              onVideoPlay={handleVideoPlay}
               onComplete={handleChallengeComplete}
             />
           )}
+
+          {/* SUMMARY: full-width summary */}
           {phase === 'summary' && (
             <SummaryPanel moodHistory={summaryMoods} onDone={handleSummaryDone} />
           )}
+
+          {/* IDLE / RINGING: classic 2-col — camera left, reactive clock right */}
           {(phase === 'idle' || phase === 'ringing') && (
-            <div
-              className="rounded-2xl p-8 border transition-all duration-1000 flex flex-col items-center justify-center text-center shadow-2xl"
-              style={{ borderColor: `${theme.color}33`, backgroundColor: theme.bg }}
-            >
-              <p className="text-[10px] uppercase tracking-[0.2em] font-bold mb-1" style={{ color: `${theme.color}88` }}>
-                {modelsLoaded ? 'AI analysis active' : 'Loading AI models…'}
-              </p>
-              <h2 className="text-xl font-bold mb-1" style={{ color: theme.color }}>{theme.message}</h2>
-              <p className="text-xs text-[#555566] mb-8">{theme.subtext}</p>
-              <div className="font-mono text-6xl md:text-7xl tracking-tighter font-bold" style={{ color: theme.color }}>
-                {formatTime(currentTime)}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+              {/* Camera feed */}
+              <div className="relative rounded-2xl overflow-hidden bg-black border border-[#2a2a32] shadow-xl aspect-video">
+                {isCameraOn ? (
+                  <video
+                    ref={videoRef}
+                    onPlay={handleVideoPlay}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover opacity-90"
+                    style={{ transform: 'scaleX(-1)' }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-[#333344]">
+                    <CameraOff size={28} className="mb-2" />
+                    <span className="text-[10px] uppercase tracking-widest">Feed Offline</span>
+                  </div>
+                )}
+
+                {/* Emotion overlay */}
+                <div className="absolute top-3 left-3 flex items-center gap-2 bg-black/60 px-2.5 py-1.5 rounded-lg">
+                  <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: theme.color }} />
+                  <span className="text-[10px] font-mono" style={{ color: theme.color }}>
+                    {currentEmotion.toUpperCase()}
+                  </span>
+                </div>
+
+                {/* Mood timeline dots */}
+                {moodHistory.length > 0 && (
+                  <div className="absolute bottom-10 left-3 right-3 flex gap-1 flex-wrap">
+                    {moodHistory.slice(-12).map((m, i) => (
+                      <span key={i} title={m} className="text-sm" style={{ opacity: 0.4 + (i / 12) * 0.6 }}>
+                        {EMOTION_ICONS[m] ?? '😐'}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Camera toggle */}
+                <button
+                  onClick={() => setIsCameraOn(v => !v)}
+                  className="absolute bottom-3 right-3 p-2 bg-white/10 backdrop-blur-sm rounded-full hover:bg-white/20 transition-colors"
+                  title={isCameraOn ? 'Turn off camera' : 'Turn on camera'}
+                >
+                  {isCameraOn
+                    ? <Camera size={16} className="text-white" />
+                    : <CameraOff size={16} className="text-[#666677]" />
+                  }
+                </button>
+              </div>
+
+              {/* Reactive clock */}
+              <div
+                className="rounded-2xl p-8 border transition-all duration-1000 flex flex-col items-center justify-center text-center shadow-2xl"
+                style={{ borderColor: `${theme.color}33`, backgroundColor: theme.bg }}
+              >
+                <p className="text-[10px] uppercase tracking-[0.2em] font-bold mb-1" style={{ color: `${theme.color}88` }}>
+                  {modelsLoaded ? 'AI analysis active' : 'Loading AI models…'}
+                </p>
+                <h2 className="text-xl font-bold mb-1" style={{ color: theme.color }}>{theme.message}</h2>
+                <p className="text-xs text-[#555566] mb-8">{theme.subtext}</p>
+                <div className="font-mono text-6xl md:text-7xl tracking-tighter font-bold" style={{ color: theme.color }}>
+                  {formatTime(currentTime)}
+                </div>
               </div>
             </div>
           )}
@@ -617,4 +688,4 @@ export function Dashboard({ userName, setUserName, onStartAlarm }: DashboardProp
       </main>
     </div>
   );
-} 
+}
