@@ -18,35 +18,45 @@ export function Dashboard({ userName, setUserName, onStartAlarm }: DashboardProp
   const [activeTab, setActiveTab] = useState<'dashboard' | 'settings'>('dashboard');
   const [tempName, setTempName] = useState(userName);
 
-  const [alarms, setAlarms] = useState<Alarm[]>([
-    { id: '1', time: '07:00', enabled: true, label: 'Morning Wake' },
-    { id: '2', time: '09:30', enabled: false, label: 'Work Start' },
-    { id: '3', time: '14:00', enabled: true, label: 'Afternoon Check' },
-  ]);
+  const [alarms, setAlarms] = useState<Alarm[]>(() => {
+    const saved = localStorage.getItem('focusWake_alarms');
+    return saved ? JSON.parse(saved) : [
+      { id: '1', time: '07:00', enabled: true, label: 'Morning Wake' },
+      { id: '2', time: '09:30', enabled: false, label: 'Work Start' },
+    ];
+  });
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [newTime, setNewTime] = useState('08:00');
   const [newLabel, setNewLabel] = useState('');
 
-  // Keep the input field in sync if userName changes elsewhere
+  // Sync tempName with the prop if it changes
   useEffect(() => {
     setTempName(userName);
   }, [userName]);
 
+  // Persist Alarms to LocalStorage
+  useEffect(() => {
+    localStorage.setItem('focusWake_alarms', JSON.stringify(alarms));
+  }, [alarms]);
+
+  // High-precision clock and trigger logic
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date();
       setCurrentTime(now);
 
-      const currentHHmm = now.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      });
+      // Only check the alarm at the exact 0th second of the minute
+      if (now.getSeconds() === 0) {
+        const currentHHmm = now.toLocaleTimeString('en-GB', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
 
-      const triggered = alarms.find(a => a.enabled && a.time === currentHHmm);
-      if (triggered && now.getSeconds() === 0) {
-        onStartAlarm();
+        const triggered = alarms.find(a => a.enabled && a.time === currentHHmm);
+        if (triggered) {
+          onStartAlarm();
+        }
       }
     }, 1000);
     return () => clearInterval(interval);
@@ -76,18 +86,18 @@ export function Dashboard({ userName, setUserName, onStartAlarm }: DashboardProp
   };
 
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-US', {
+    return date.toLocaleTimeString('en-GB', {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
-      hour12: false,
     });
   };
 
   return (
     <div className="min-h-screen bg-[#1a1a1f] text-[#e5e5e5] flex">
-      <aside className="w-64 bg-[#141419] border-r border-[#2a2a32] p-6">
-        <h3 className="mb-6 text-[var(--electric-blue)] font-mono font-bold tracking-tighter text-xl">FocusWake</h3>
+      {/* Sidebar */}
+      <aside className="w-64 bg-[#141419] border-r border-[#2a2a32] p-6 hidden md:block">
+        <h3 className="mb-6 text-[#00d4ff] font-mono font-bold tracking-tighter text-xl">FocusWake</h3>
         <nav className="space-y-2">
           <button 
             onClick={() => setActiveTab('dashboard')}
@@ -104,59 +114,70 @@ export function Dashboard({ userName, setUserName, onStartAlarm }: DashboardProp
         </nav>
       </aside>
 
-      <main className="flex-1 p-12 overflow-y-auto">
+      {/* Main Content */}
+      <main className="flex-1 p-6 md:p-12 overflow-y-auto">
         <div className="max-w-3xl mx-auto">
           {activeTab === 'dashboard' && (
             <div className="animate-in fade-in duration-500">
-              <div className="flex justify-between items-center mb-12">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-4">
                 <h1 className="text-3xl font-bold">Welcome back, {userName}</h1>
                 <div className="flex gap-4">
-                  <button onClick={() => setShowAddForm(!showAddForm)} className="px-6 py-2 border border-[var(--electric-blue)] text-[var(--electric-blue)] rounded-lg hover:bg-[var(--electric-blue)]/10 transition-colors">
+                  <button onClick={() => setShowAddForm(!showAddForm)} className="px-6 py-2 border border-[#00d4ff] text-[#00d4ff] rounded-lg hover:bg-[#00d4ff]/10 transition-colors">
                     {showAddForm ? 'Cancel' : '+ Add Alarm'}
                   </button>
-                  <button onClick={onStartAlarm} className="px-6 py-2 bg-[var(--electric-blue)] text-[#1a1a1f] rounded-lg hover:bg-[#00b8e6] transition-colors">
-                    Test Alarm
+                  <button onClick={onStartAlarm} className="px-6 py-2 bg-[#00d4ff] text-[#1a1a1f] rounded-lg hover:bg-[#00b8e6] transition-colors font-bold">
+                    Test
                   </button>
                 </div>
               </div>
 
               {showAddForm && (
-                <div className="bg-[#1f1f27] rounded-xl p-6 border border-[var(--electric-blue)] mb-8 animate-in fade-in slide-in-from-top-4">
+                <div className="bg-[#1f1f27] rounded-xl p-6 border border-[#00d4ff] mb-8 animate-in fade-in slide-in-from-top-4">
                   <form onSubmit={handleAddAlarm} className="flex flex-col md:flex-row gap-4 items-end">
                     <div className="flex-1 space-y-2 w-full">
                       <label className="text-sm text-[#888899]">Wake Time</label>
-                      <input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} className="w-full bg-[#141419] border border-[#2a2a32] rounded-lg p-2 text-xl text-[#e5e5e5] outline-none" />
+                      <input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} className="w-full bg-[#141419] border border-[#2a2a32] rounded-lg p-2 text-xl text-[#e5e5e5] outline-none focus:border-[#00d4ff]" required />
                     </div>
                     <div className="flex-1 space-y-2 w-full">
                       <label className="text-sm text-[#888899]">Label</label>
-                      <input type="text" placeholder="e.g. Study Session" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} className="w-full bg-[#141419] border border-[#2a2a32] rounded-lg p-2 text-xl text-[#e5e5e5] outline-none" />
+                      <input type="text" placeholder="e.g. Study Session" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} className="w-full bg-[#141419] border border-[#2a2a32] rounded-lg p-2 text-xl text-[#e5e5e5] outline-none focus:border-[#00d4ff]" />
                     </div>
-                    <button type="submit" className="px-8 py-3 bg-[var(--success-green)] text-[#1a1a1f] rounded-lg font-bold">Save</button>
+                    <button type="submit" className="w-full md:w-auto px-8 py-3 bg-[#4ade80] text-[#1a1a1f] rounded-lg font-bold hover:brightness-110">Save</button>
                   </form>
                 </div>
               )}
 
-              <div className="bg-gradient-to-br from-[#1f1f27] to-[#1a1a1f] rounded-2xl p-12 mb-8 border border-[#2a2a32]/50 text-center">
-                <div className="font-mono text-7xl tracking-wider text-[var(--electric-blue)] mb-2">{formatTime(currentTime)}</div>
-                <div className="text-[#888899] uppercase tracking-widest text-sm">
+              {/* Digital Clock Display */}
+              <div className="bg-gradient-to-br from-[#1f1f27] to-[#141419] rounded-2xl p-8 md:p-12 mb-8 border border-[#2a2a32]/50 text-center shadow-2xl">
+                <div className="font-mono text-5xl md:text-7xl tracking-wider text-[#00d4ff] mb-2">{formatTime(currentTime)}</div>
+                <div className="text-[#888899] uppercase tracking-widest text-xs md:text-sm">
                   {currentTime.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                 </div>
               </div>
 
+              {/* Alarm List */}
               <div className="bg-[#1f1f27] rounded-xl p-6 border border-[#2a2a32]">
-                <h2 className="mb-6 font-semibold">Scheduled Alarms</h2>
+                <h2 className="mb-6 font-semibold text-[#888899] uppercase tracking-tight">Scheduled Alarms</h2>
                 <div className="space-y-4">
-                  {alarms.map((alarm) => (
-                    <div key={alarm.id} className="flex items-center justify-between p-4 bg-[#141419] rounded-lg border border-[#2a2a32]">
-                      <div className="flex items-center gap-4">
-                        <span className="font-mono text-3xl">{alarm.time}</span>
-                        <span className="text-[#888899]">{alarm.label}</span>
+                  {alarms.length === 0 ? (
+                    <p className="text-center py-8 text-[#555566]">No alarms scheduled.</p>
+                  ) : (
+                    alarms.map((alarm) => (
+                      <div key={alarm.id} className="flex items-center justify-between p-4 bg-[#141419] rounded-lg border border-[#2a2a32] hover:border-[#3a3a45] transition-colors">
+                        <div className="flex items-center gap-4">
+                          <span className="font-mono text-2xl md:text-3xl">{alarm.time}</span>
+                          <span className="text-[#888899] hidden md:inline">—</span>
+                          <span className="text-[#e5e5e5]">{alarm.label}</span>
+                        </div>
+                        <button 
+                          onClick={() => toggleAlarm(alarm.id)} 
+                          className={`relative w-14 h-7 rounded-full transition-colors duration-200 ${alarm.enabled ? 'bg-[#00d4ff]' : 'bg-[#2a2a32]'}`}
+                        >
+                          <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-transform duration-200 ${alarm.enabled ? 'translate-x-8' : 'translate-x-1'}`} />
+                        </button>
                       </div>
-                      <button onClick={() => toggleAlarm(alarm.id)} className={`relative w-14 h-7 rounded-full transition-colors ${alarm.enabled ? 'bg-[var(--electric-blue)]' : 'bg-[#2a2a32]'}`}>
-                        <div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-transform ${alarm.enabled ? 'translate-x-8' : 'translate-x-1'}`} />
-                      </button>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -165,21 +186,21 @@ export function Dashboard({ userName, setUserName, onStartAlarm }: DashboardProp
           {activeTab === 'settings' && (
             <div className="animate-in fade-in slide-in-from-bottom-4">
               <h1 className="text-3xl font-bold mb-12">Settings</h1>
-              <div className="bg-card rounded-xl p-8 border border-[#2a2a32] space-y-6">
-                <div className="flex justify-between items-center">
+              <div className="bg-[#1f1f27] rounded-xl p-8 border border-[#2a2a32] space-y-8">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <div>
                     <h4 className="text-lg font-medium">User Profile</h4>
-                    <p className="text-sm text-[#888899]">How the app greets you.</p>
+                    <p className="text-sm text-[#888899]">This is how the system identifies you.</p>
                   </div>
                   <input 
                     type="text" 
                     value={tempName} 
                     onChange={(e) => setTempName(e.target.value)} 
-                    className="bg-[#141419] border border-[#3a5a40] rounded-lg p-3 text-right text-[var(--electric-blue)] outline-none"
+                    className="w-full md:w-64 bg-[#141419] border border-[#2a2a32] rounded-lg p-3 text-[#00d4ff] outline-none focus:border-[#00d4ff]"
                   />
                 </div>
-                <div className="flex justify-end">
-                  <button onClick={handleSaveSettings} className="px-8 py-2 bg-[var(--electric-blue)] text-[#1a1a1f] rounded-lg font-bold">
+                <div className="flex justify-end pt-4 border-t border-[#2a2a32]">
+                  <button onClick={handleSaveSettings} className="px-8 py-2 bg-[#00d4ff] text-[#1a1a1f] rounded-lg font-bold hover:bg-[#00b8e6]">
                     Save Changes
                   </button>
                 </div>
