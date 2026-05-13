@@ -275,4 +275,4 @@ export function Dashboard({ userName, setUserName, onStartAlarm }: DashboardProp
       </main>
     </div>
   );
-}
+} 
