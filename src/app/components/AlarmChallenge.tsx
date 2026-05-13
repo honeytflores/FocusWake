@@ -14,17 +14,18 @@ interface AlarmChallengeProps {
   modelsLoaded: boolean;
 }
 
+// ─── Emotion config ───────────────────────────────────────────────────────────
 const TARGET_EMOTIONS = ['angry', 'fearful', 'disgusted', 'sad'] as const;
 type TargetEmotion = typeof TARGET_EMOTIONS[number];
 
 const emotionThemes: Record<string, { color: string; bg: string; border: string; message: string; subtext: string }> = {
-  neutral:   { color: '#00d4ff', bg: 'rgba(0,212,255,0.06)',   border: 'rgba(0,212,255,0.25)',   message: 'Normal',       subtext: 'You are in your optimal zone.'            },
-  angry:     { color: '#ff4d4d', bg: 'rgba(255,77,77,0.08)',   border: 'rgba(255,77,77,0.3)',    message: 'Irritability', subtext: 'Take a deep breath.'                       },
-  fearful:   { color: '#ffb366', bg: 'rgba(255,179,102,0.08)', border: 'rgba(255,179,102,0.3)',  message: 'Anxiety',      subtext: 'Focus on the next small step.'              },
-  disgusted: { color: '#ffff66', bg: 'rgba(255,255,102,0.08)', border: 'rgba(255,255,102,0.25)', message: 'Annoyance',    subtext: 'Clear the noise and reset.'                },
-  sad:       { color: '#99ff99', bg: 'rgba(153,255,153,0.08)', border: 'rgba(153,255,153,0.25)', message: 'Fatigue',      subtext: 'Rest is productive.'                       },
-  surprised: { color: '#00d4ff', bg: 'rgba(0,212,255,0.06)',   border: 'rgba(0,212,255,0.25)',   message: 'Normal',       subtext: 'You are in your optimal zone.'            },
-  happy:     { color: '#00d4ff', bg: 'rgba(0,212,255,0.06)',   border: 'rgba(0,212,255,0.25)',   message: 'Normal',       subtext: 'You are in your optimal zone.'            },
+  neutral:   { color: '#00d4ff', bg: 'rgba(0,212,255,0.06)',   border: 'rgba(0,212,255,0.25)',   message: 'Normal',       subtext: 'You are in your optimal zone.' },
+  angry:     { color: '#ff4d4d', bg: 'rgba(255,77,77,0.08)',   border: 'rgba(255,77,77,0.3)',    message: 'Irritability', subtext: 'Take a deep breath.' },
+  fearful:   { color: '#ffb366', bg: 'rgba(255,179,102,0.08)', border: 'rgba(255,179,102,0.3)',  message: 'Anxiety',      subtext: 'Focus on the next small step.' },
+  disgusted: { color: '#ffff66', bg: 'rgba(255,255,102,0.08)', border: 'rgba(255,255,102,0.25)', message: 'Annoyance',    subtext: 'Clear the noise and reset.' },
+  sad:       { color: '#99ff99', bg: 'rgba(153,255,153,0.08)', border: 'rgba(153,255,153,0.25)', message: 'Fatigue',      subtext: 'Rest is productive.' },
+  surprised: { color: '#00d4ff', bg: 'rgba(0,212,255,0.06)',   border: 'rgba(0,212,255,0.25)',   message: 'Normal',       subtext: 'You are in your optimal zone.' },
+  happy:     { color: '#00d4ff', bg: 'rgba(0,212,255,0.06)',   border: 'rgba(0,212,255,0.25)',   message: 'Normal',       subtext: 'You are in your optimal zone.' },
 };
 
 const EMOTION_ICONS: Record<string, string> = {
@@ -36,16 +37,16 @@ const EMOTION_ICONS: Record<string, string> = {
 function getFullQuestionBank(): Question[] {
   const now = new Date();
   return [
-    { question: "What is the current month?",              answer: now.toLocaleDateString('en-US', { month: 'long' }) },
-    { question: "What day of the week is it?",             answer: now.toLocaleDateString('en-US', { weekday: 'long' }) },
-    { question: "Is it currently AM or PM?",               answer: now.getHours() >= 12 ? 'PM' : 'AM' },
-    { question: "What is the current year?",               answer: now.getFullYear().toString() },
-    { question: "Type the word 'COFFEE' in all caps",      answer: 'COFFEE' },
-    { question: "Type the word 'ALARM' backwards",         answer: 'MRALA' },
-    { question: "Type the name of this app",               answer: 'FocusWake' },
-    { question: "What is 5 + 5?",                          answer: '10' },
-    { question: "What is 10 minus 3?",                     answer: '7' },
-    { question: "How many hours are in a full day?",        answer: '24' },
+    { question: "What is the current month?", answer: now.toLocaleDateString('en-US', { month: 'long' }) },
+    { question: "What day of the week is it?", answer: now.toLocaleDateString('en-US', { weekday: 'long' }) },
+    { question: "Is it currently AM or PM?", answer: now.getHours() >= 12 ? 'PM' : 'AM' },
+    { question: "What is the current year?", answer: now.getFullYear().toString() },
+    { question: "Type the word 'COFFEE' in all caps", answer: 'COFFEE' },
+    { question: "Type the word 'ALARM' backwards", answer: 'MRALA' },
+    { question: "Type the name of this app", answer: 'FocusWake' },
+    { question: "What is 5 + 5?", answer: '10' },
+    { question: "What is 10 minus 3?", answer: '7' },
+    { question: "How many hours are in a full day?", answer: '24' },
   ];
 }
 
@@ -57,86 +58,134 @@ function mapToTargetEmotion(detected: string, expressions: Record<string, number
   return 'neutral';
 }
 
+// ─── Component ────────────────────────────────────────────────────────────────
 export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps) {
-  const videoRef    = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const streamRef = useRef<MediaStream | null>(null); // persist stream across renders
 
-  const [answer, setAnswer]               = useState('');
-  const [startTime]                       = useState(Date.now());
-  const [error, setError]                 = useState('');
+  const [answer, setAnswer] = useState('');
+  const [startTime] = useState(Date.now());
+  const [error, setError] = useState('');
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const [activeQuestions, setActiveQuestions] = useState<Question[]>([]);
-  const [completedCount, setCompletedCount]   = useState(0);
-
+  const [completedCount, setCompletedCount] = useState(0);
   const [currentEmotion, setCurrentEmotion] = useState('neutral');
-  const [moodHistory, setMoodHistory]       = useState<string[]>([]);
-  const [cameraReady, setCameraReady]       = useState(false);
+  const [moodHistory, setMoodHistory] = useState<string[]>([]);
+  const [cameraReady, setCameraReady] = useState(false);
   const [isTargetEmotion, setIsTargetEmotion] = useState(false);
+  const [detectionActive, setDetectionActive] = useState(false);
 
   const theme = emotionThemes[currentEmotion] ?? emotionThemes['neutral'];
 
+  // ── Init questions ──
   useEffect(() => {
     const shuffled = getFullQuestionBank().sort(() => 0.5 - Math.random());
     setActiveQuestions(shuffled.slice(0, 5));
   }, []);
 
-  // ── Camera Stream Logic ──
+  // ── Camera + Detection Setup (unified effect) ──
   useEffect(() => {
-    if (!modelsLoaded) return; // Wait for models before starting camera
+    if (!modelsLoaded) return;
 
-    let stream: MediaStream | null = null;
-    const startCamera = async () => {
+    let cancelled = false;
+
+    const startCameraAndDetection = async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { facingMode: 'user', width: 640, height: 480 }, 
-          audio: false 
+        // 1. Request camera
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+          audio: false
         });
+        
+        if (cancelled) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
+        
+        streamRef.current = stream;
+        
+        // 2. Attach to video element
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          // Force play - some browsers need this after srcObject assignment
+          await videoRef.current.play().catch(err => {
+            console.warn('Video play failed:', err);
+            setCameraError('Video playback blocked. Click to enable.');
+          });
           setCameraReady(true);
+          setCameraError(null);
         }
-      } catch (err) {
-        console.error("Camera access blocked or not found:", err);
+
+        // 3. Start detection loop (don't wait for onPlay - more reliable)
+        startDetectionLoop();
+        
+      } catch (err: any) {
+        console.error('Camera error:', err);
+        if (err.name === 'NotAllowedError') {
+          setCameraError('Camera permission denied. Please allow access.');
+        } else if (err.name === 'NotFoundError') {
+          setCameraError('No camera found on this device.');
+        } else if (err.name === 'NotSecureContextError' || !window.isSecureContext) {
+          setCameraError('Camera requires HTTPS. Please use a secure connection.');
+        } else {
+          setCameraError(`Camera error: ${err.message || 'Unknown error'}`);
+        }
         setCameraReady(false);
       }
     };
 
-    startCamera();
+    const startDetectionLoop = () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      
+      intervalRef.current = setInterval(async () => {
+        if (!videoRef.current || !modelsLoaded || !cameraReady) return;
+        if (videoRef.current.paused || videoRef.current.ended) return;
+        
+        try {
+          const detections = await faceapi
+            .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
+            .withFaceExpressions();
+            
+          if (detections?.length > 0) {
+            const expressions = detections[0].expressions;
+            const best = (Object.entries(expressions) as [string, number][])
+              .reduce((a, b) => a[1] > b[1] ? a : b);
+              
+            const mappedEmotion = mapToTargetEmotion(best[0], expressions);
+            setCurrentEmotion(mappedEmotion);
+            setIsTargetEmotion(TARGET_EMOTIONS.includes(mappedEmotion as TargetEmotion));
+            setMoodHistory(h => [...h.slice(-19), mappedEmotion]);
+            setDetectionActive(true);
+          } else {
+            setDetectionActive(false);
+          }
+        } catch (err) {
+          console.warn('Detection error:', err);
+          setDetectionActive(false);
+        }
+      }, 500);
+    };
+
+    startCameraAndDetection();
 
     return () => {
-      stream?.getTracks().forEach(t => t.stop());
+      cancelled = true;
       if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [modelsLoaded]);
-
-  const handleVideoPlay = useCallback(() => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    
-    intervalRef.current = setInterval(async () => {
-      if (!videoRef.current || !modelsLoaded || videoRef.current.paused || videoRef.current.ended) return;
-      
-      try {
-        const detections = await faceapi
-          .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions())
-          .withFaceExpressions();
-          
-        if (detections && detections.length > 0) {
-          const expressions = detections[0].expressions;
-          const best = (Object.entries(expressions) as [string, number][])
-            .reduce((a, b) => a[1] > b[1] ? a : b);
-            
-          const mappedEmotion = mapToTargetEmotion(best[0], expressions);
-          setCurrentEmotion(mappedEmotion);
-          setIsTargetEmotion(TARGET_EMOTIONS.includes(mappedEmotion as TargetEmotion));
-          
-          setMoodHistory(h => [...h.slice(-19), mappedEmotion]);
-        }
-      } catch (err) {
-        console.warn("Face detection error:", err);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
       }
-    }, 500);
-  }, [modelsLoaded]);
+    };
+  }, [modelsLoaded, cameraReady]);
 
-  // ── Corrected Submit Logic (Infinite Loop for Incorrect Answers) ──
+  // ── Fallback: Retry camera on user click ──
+  const handleEnableCamera = async () => {
+    setCameraError(null);
+    // Re-trigger the effect by toggling a state (or just reload component)
+    window.location.reload(); // Simplest reliable retry
+  };
+
+  // ── Submit logic ──
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (activeQuestions.length === 0 || error) return;
@@ -147,8 +196,7 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
 
     if (userAnswer === correctAnswer) {
       const updatedQuestions = [...activeQuestions];
-      updatedQuestions.shift(); // Remove correct question
-      
+      updatedQuestions.shift();
       setActiveQuestions(updatedQuestions);
       setCompletedCount(prev => prev + 1);
       setAnswer('');
@@ -160,13 +208,10 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
       }
     } else {
       setError('Incorrect! Question moved to end.');
-      
-      // Delay to show error before moving the question to the end
       setTimeout(() => {
         const updatedQuestions = [...activeQuestions];
-        const missed = updatedQuestions.shift()!; // Take failed question from front
-        updatedQuestions.push(missed);           // Add to back of the queue
-        
+        const missed = updatedQuestions.shift()!;
+        updatedQuestions.push(missed);
         setActiveQuestions(updatedQuestions);
         setAnswer('');
         setError('');
@@ -182,27 +227,41 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
       style={{ backgroundColor: '#1a1a1f', backgroundImage: `radial-gradient(ellipse at 50% 0%, ${theme.bg} 0%, transparent 70%)` }}
     >
       <div className="w-full max-w-3xl">
-        <div
-          className={`w-full mb-10 rounded-2xl overflow-hidden border transition-all duration-700 ${
-            isTargetEmotion ? 'ring-2 ring-offset-2 ring-offset-[#1a1a1f]' : ''
-          }`}
+        
+        {/* ── Camera / Emotion Banner ── */}
+        <div className={`w-full mb-10 rounded-2xl overflow-hidden border transition-all duration-700 ${isTargetEmotion ? 'ring-2 ring-offset-2 ring-offset-[#1a1a1f]' : ''}`}
           style={{ borderColor: theme.border, backgroundColor: theme.bg }}
         >
           <div className="flex items-stretch">
             <div className="relative w-36 shrink-0 bg-black">
-              {cameraReady ? (
-                <video
-                  ref={videoRef}
-                  onPlay={handleVideoPlay}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover"
-                  style={{ transform: 'scaleX(-1)', minHeight: 96 }}
-                />
+              {cameraError ? (
+                <div className="w-full h-full flex flex-col items-center justify-center text-[#ff6b6b] min-h-[96px] p-2 text-center">
+                  <span className="text-[10px] uppercase tracking-wider mb-1">⚠️ {cameraError}</span>
+                  <button 
+                    onClick={handleEnableCamera}
+                    className="text-[10px] px-2 py-1 bg-[#333] rounded hover:bg-[#444] transition"
+                  >
+                    Retry Camera
+                  </button>
+                </div>
+              ) : cameraReady ? (
+                <>
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                    style={{ transform: 'scaleX(-1)', minHeight: 96 }}
+                  />
+                  {/* Detection status indicator */}
+                  <div className={`absolute bottom-1 right-1 text-[9px] px-1.5 py-0.5 rounded ${detectionActive ? 'bg-green-500/20 text-green-300' : 'bg-yellow-500/20 text-yellow-300'}`}>
+                    {detectionActive ? '● Detecting' : '○ Waiting'}
+                  </div>
+                </>
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-[#333344] min-h-[96px]">
-                  <span className="text-[10px] uppercase tracking-widest text-center px-2">Camera Offline</span>
+                <div className="w-full h-full flex items-center justify-center text-[#666] min-h-[96px]">
+                  <span className="text-[10px] uppercase tracking-widest">Initializing camera...</span>
                 </div>
               )}
             </div>
@@ -210,7 +269,9 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
             <div className="flex-1 px-5 py-4 flex flex-col justify-center">
               <div className="flex items-center gap-2 mb-1">
                 <span className={`w-2 h-2 rounded-full ${isTargetEmotion ? 'animate-pulse' : ''}`} style={{ backgroundColor: theme.color }} />
-                <span className="text-[10px] uppercase tracking-[0.2em] font-bold" style={{ color: theme.color }}>Live Analysis</span>
+                <span className="text-[10px] uppercase tracking-[0.2em] font-bold" style={{ color: theme.color }}>
+                  {detectionActive ? 'Live Analysis' : 'Standby'}
+                </span>
               </div>
               <div className="flex items-baseline gap-3">
                 <span className="text-3xl leading-none">{EMOTION_ICONS[currentEmotion] ?? '😐'}</span>
@@ -223,10 +284,12 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
           </div>
         </div>
 
+        {/* ── Progress ── */}
         <div className="mb-16">
           <ProgressStepper currentStep={completedCount} totalSteps={5} />
         </div>
 
+        {/* ── Question Form ── */}
         <div className="text-center space-y-8">
           <h1 className="text-4xl text-[#e5e5e5] leading-tight min-h-[100px]">
             {activeQuestions[0].question}
@@ -238,17 +301,17 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
               value={answer}
               onChange={e => setAnswer(e.target.value)}
               placeholder="Type answer..."
-              disabled={!!error}
+              disabled={!!error || !cameraReady}
               className={`w-full px-6 py-4 bg-[#141419] border-2 rounded-lg text-2xl text-[#e5e5e5] focus:outline-none transition-all ${
                 error ? 'border-red-500 animate-pulse' : ''
-              }`}
+              } ${!cameraReady ? 'opacity-50 cursor-not-allowed' : ''}`}
               style={!error ? { borderColor: theme.color } : {}}
               autoFocus
             />
             <button
               type="submit"
-              disabled={!!error || !answer.trim()}
-              className="px-12 py-4 rounded-lg text-xl font-bold w-full md:w-auto transition-all disabled:opacity-50"
+              disabled={!!error || !answer.trim() || !cameraReady}
+              className="px-12 py-4 rounded-lg text-xl font-bold w-full md:w-auto transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: theme.color, color: '#1a1a1f' }}
             >
               Verify [Enter]
@@ -256,6 +319,10 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
           </form>
 
           {error && <p className="text-red-400 text-sm tracking-widest uppercase animate-pulse">{error}</p>}
+          
+          {!cameraReady && !cameraError && (
+            <p className="text-[#666] text-xs">Waiting for camera access...</p>
+          )}
         </div>
       </div>
     </div>
