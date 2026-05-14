@@ -56,11 +56,14 @@ export default function App() {
       )}
 
       {appState === 'success' && (
-        <SuccessScreen 
-          userName={userName} 
-          completionTime={completionTime} 
-          onBackToDashboard={handleBackToDashboard} 
-        />
+        <SuccessScreen
+  userName={userName}
+  completionTime={completionTime}
+  onBackToDashboard={handleBackToDashboard}
+  lastEmotion={
+    moodHistory?.[moodHistory.length - 1] || 'neutral'
+  }
+/>
       )}
     </div>
   );
