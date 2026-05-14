@@ -44,11 +44,12 @@ export function SuccessScreen({
           </h1>
 
           <p className="text-xs text-[#888899] uppercase tracking-[0.3em] font-mono">
-            Final Emotion Detected:
-            <span className="text-[#4ade80] ml-2 capitalize">
-              {lastEmotion}
-            </span>
-          </p>
+  Final Emotion Detected:
+</p>
+
+<p className="text-lg font-bold text-[#4ade80] capitalize">
+  {lastEmotion}
+</p>
         </div>
 
         {/* Stats Card */}
