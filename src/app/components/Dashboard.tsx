@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Camera, CameraOff, Activity, Plus, Trash2, Bell, BellOff, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
+import { Camera, CameraOff, Plus, Trash2, Bell, BellOff, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
 import * as faceapi from '@vladmandic/face-api';
+import { AlarmChallenge } from './AlarmChallenge';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -85,199 +86,7 @@ function RingingOverlay({ alarmLabel, onSnooze, onDismiss }: {
   );
 }
 
-/** Question panel with queue loop — camera feed embedded inline */
-function ChallengePanel({
-  currentEmotion,
-  videoRef,
-  isCameraOn,
-  onVideoPlay,
-  onComplete,
-}: {
-  currentEmotion: string;
-  videoRef: React.RefObject<HTMLVideoElement>;
-  isCameraOn: boolean;
-  onVideoPlay: () => void;
-  onComplete: (moodHistory: string[]) => void;
-}) {
-  const [queue, setQueue]               = useState([...QUESTIONS]);
-  const [currentIdx, setCurrentIdx]     = useState(0);
-  const [input, setInput]               = useState('');
-  const [feedback, setFeedback]         = useState<'correct' | 'wrong' | null>(null);
-  const [totalCorrect, setTotalCorrect] = useState(0);
-  const [wrongCount, setWrongCount]     = useState(0);
-  const [moodHistory, setMoodHistory]   = useState<string[]>([]);
-
-  const theme = emotionThemes[currentEmotion] ?? emotionThemes['neutral'];
-
-  // Accumulate mood every 3 s while challenge is open
-  useEffect(() => {
-    const t = setInterval(() => {
-      setMoodHistory(h => [...h, currentEmotion]);
-    }, 3000);
-    return () => clearInterval(t);
-  }, [currentEmotion]);
-
-  const handleSubmit = useCallback(() => {
-    if (feedback) return;
-    const q = queue[currentIdx];
-    const correct = input.trim().toLowerCase() === q.answer.toLowerCase();
-    setFeedback(correct ? 'correct' : 'wrong');
-
-    setTimeout(() => {
-      if (correct) {
-        const newCorrect = totalCorrect + 1;
-        setTotalCorrect(newCorrect);
-        const newQueue = queue.filter((_, i) => i !== currentIdx);
-        if (newQueue.length === 0) {
-          onComplete([...moodHistory, currentEmotion]);
-          return;
-        }
-        setQueue(newQueue);
-        setCurrentIdx(i => Math.min(i, newQueue.length - 1));
-      } else {
-        setWrongCount(w => w + 1);
-        const newQueue = [...queue];
-        const [missed] = newQueue.splice(currentIdx, 1);
-        newQueue.push(missed);
-        setQueue(newQueue);
-        setCurrentIdx(i => Math.min(i, newQueue.length - 1));
-      }
-      setInput('');
-      setFeedback(null);
-    }, 900);
-  }, [feedback, input, queue, currentIdx, totalCorrect, moodHistory, currentEmotion, onComplete]);
-
-  const q = queue[currentIdx];
-  const progress = (totalCorrect / QUESTIONS.length) * 100;
-
-  return (
-    <div className="bg-[#0e0e16] rounded-2xl border border-[#2a2a32] overflow-hidden w-full">
-      <div className="flex flex-col md:flex-row">
-
-        {/* ── Left: live camera feed ── */}
-        <div className="relative md:w-72 lg:w-80 shrink-0 bg-black aspect-video md:aspect-auto">
-          {isCameraOn ? (
-            <video
-              ref={videoRef}
-              onPlay={onVideoPlay}
-              autoPlay
-              playsInline
-              muted
-              className="w-full h-full object-cover opacity-90"
-              style={{ transform: 'scaleX(-1)' }}
-            />
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center text-[#333344] min-h-[200px]">
-              <CameraOff size={24} className="mb-2" />
-              <span className="text-[10px] uppercase tracking-widest">Feed Offline</span>
-            </div>
-          )}
-
-          {/* Emotion badge — pinned over the video */}
-          <div
-            className="absolute top-3 left-3 right-3 flex items-center gap-2 px-3 py-2 rounded-xl border"
-            style={{ background: 'rgba(0,0,0,0.72)', borderColor: `${theme.color}44` }}
-          >
-            <span className="text-xl leading-none">{EMOTION_ICONS[currentEmotion] ?? '😐'}</span>
-            <div className="flex flex-col leading-tight">
-              <span className="text-[10px] uppercase tracking-widest font-bold" style={{ color: theme.color }}>
-                {theme.message}
-              </span>
-              <span className="text-[9px] text-[#555566]">{theme.subtext}</span>
-            </div>
-            <span
-              className="ml-auto w-2 h-2 rounded-full animate-pulse shrink-0"
-              style={{ background: theme.color }}
-            />
-          </div>
-
-          {/* Mood history strip at bottom */}
-          {moodHistory.length > 0 && (
-            <div className="absolute bottom-0 left-0 right-0 px-3 py-2 flex gap-1 flex-wrap bg-gradient-to-t from-black/60 to-transparent">
-              {moodHistory.slice(-10).map((m, i) => (
-                <span
-                  key={i}
-                  title={m}
-                  className="text-base"
-                  style={{ opacity: 0.35 + (i / 10) * 0.65 }}
-                >
-                  {EMOTION_ICONS[m] ?? '😐'}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ── Right: question + answer ── */}
-        <div className="flex-1 p-6 flex flex-col justify-between">
-          {/* Header row */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2">
-                <Activity size={13} className="text-[#888899]" />
-                <span className="text-[10px] uppercase tracking-[0.2em] text-[#888899] font-bold">
-                  Verification Task
-                </span>
-              </div>
-              <span className="text-[10px] text-[#555566] font-mono">
-                {totalCorrect}/{QUESTIONS.length} correct
-                {wrongCount > 0 && (
-                  <span className="ml-2 text-[#ff9944]">↩ {wrongCount} re-queued</span>
-                )}
-              </span>
-            </div>
-
-            {/* Progress bar */}
-            <div className="w-full h-1 bg-[#141419] rounded-full mb-5 overflow-hidden">
-              <div
-                className="h-full bg-[#00d4ff] rounded-full transition-all duration-500"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-
-            {/* Question */}
-            <p className="text-[10px] text-[#444455] uppercase tracking-widest mb-1 font-mono">
-              Question {currentIdx + 1} of {queue.length}
-            </p>
-            <p className="text-xl font-bold text-[#e5e5e5] mb-5 leading-snug">{q?.question}</p>
-          </div>
-
-          {/* Input + submit */}
-          <div>
-            <input
-              type="text"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-              placeholder="Type your answer…"
-              disabled={!!feedback}
-              className="w-full bg-[#141419] border border-[#2a2a32] p-4 rounded-xl outline-none focus:border-[#00d4ff] mb-3 text-[#e5e5e5] placeholder-[#444455] transition-colors"
-            />
-
-            {feedback === 'correct' && (
-              <div className="flex items-center gap-2 mb-3 text-[#22c55e] text-sm">
-                <CheckCircle size={14} /> Correct!
-              </div>
-            )}
-            {feedback === 'wrong' && (
-              <div className="flex items-center gap-2 mb-3 text-[#ef4444] text-sm">
-                <XCircle size={14} /> Incorrect — question added back to the queue
-              </div>
-            )}
-
-            <button
-              onClick={handleSubmit}
-              disabled={!!feedback || !input.trim()}
-              className="w-full py-4 bg-[#00d4ff] text-black font-bold rounded-xl hover:bg-[#00b8e6] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Submit
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+// Challenge is handled by <AlarmChallenge> component
 
 /** Summary after completing all questions */
 function SummaryPanel({ moodHistory, onDone }: { moodHistory: string[]; onDone: () => void }) {
@@ -457,6 +266,7 @@ export function Dashboard({ userName, setUserName, onStartAlarm }: DashboardProp
   const handleChallengeComplete = useCallback((moods: string[]) => {
     setSummaryMoods(moods);
     setPhase('summary');
+    setIsCameraOn(false);
   }, []);
 
   const handleSummaryDone = useCallback(() => {
@@ -533,14 +343,11 @@ export function Dashboard({ userName, setUserName, onStartAlarm }: DashboardProp
         {/* ── Top section — layout shifts by phase ── */}
         <div className="mb-8">
 
-          {/* CHALLENGE: full-width panel with camera embedded inside */}
+          {/* CHALLENGE: full-screen AlarmChallenge handles its own camera + questions */}
           {phase === 'challenge' && (
-            <ChallengePanel
-              currentEmotion={currentEmotion}
-              videoRef={videoRef}
-              isCameraOn={isCameraOn}
-              onVideoPlay={handleVideoPlay}
-              onComplete={handleChallengeComplete}
+            <AlarmChallenge
+              modelsLoaded={modelsLoaded}
+              onComplete={(_, moods) => handleChallengeComplete(moods)}
             />
           )}
 
