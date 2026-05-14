@@ -52,7 +52,8 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
   const videoRef    = useRef<HTMLVideoElement>(null);
   const streamRef   = useRef<MediaStream | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Refs so the interval closure always reads the latest value — no stale state
+  
+  // Refs to ensure the detection interval always sees the latest values
   const modelsRef   = useRef(modelsLoaded);
   const emotionRef  = useRef('neutral');
 
@@ -66,21 +67,19 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
   const [moodHistory, setMoodHistory]         = useState<string[]>([]);
   const [detectionActive, setDetectionActive] = useState(false);
 
-  // Keep ref in sync whenever prop changes
   useEffect(() => { modelsRef.current = modelsLoaded; }, [modelsLoaded]);
 
   const theme = emotionThemes[currentEmotion] ?? emotionThemes['neutral'];
 
-  // ── 1. Questions ──
+  // ── 1. Questions Initialization ──
   useEffect(() => {
     const shuffled = getFullQuestionBank().sort(() => 0.5 - Math.random());
     setActiveQuestions(shuffled.slice(0, 5));
   }, []);
 
-  // ── 2. Camera — NO modelsLoaded dependency, starts immediately ──
+  // ── 2. Camera Initialization ──
   useEffect(() => {
     let cancelled = false;
-
     navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
       audio: false,
@@ -92,19 +91,16 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
       })
       .catch((err: any) => {
         if (cancelled) return;
-        if (err.name === 'NotAllowedError')  setCameraError('Camera permission denied.');
-        else if (err.name === 'NotFoundError') setCameraError('No camera found.');
-        else setCameraError('Camera unavailable.');
+        setCameraError(err.name === 'NotAllowedError' ? 'Camera permission denied.' : 'Camera unavailable.');
       });
 
     return () => {
       cancelled = true;
       streamRef.current?.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
     };
   }, []);
 
-  // ── 3. Detection — UPDATED with better accuracy & error handling ──
+  // ── 3. INTEGRATED EMOTION DETECTION BLOCK ──
   useEffect(() => {
     if (!modelsLoaded) return;
     if (intervalRef.current) clearInterval(intervalRef.current);
@@ -113,19 +109,20 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
       const video = videoRef.current;
       if (!video || !modelsRef.current) return;
       
-      // Ensure video is actually streaming and has valid dimensions
+      // Verification: Video must be active and sending data
       if (video.readyState < 2 || video.paused || video.ended || video.videoWidth === 0) return;
 
       try {
         const detections = await faceapi
           .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ 
-            inputSize: 320,      // ⬆️ Larger input improves expression accuracy
-            scoreThreshold: 0.3  // ⬇️ Lower threshold catches faces at slight angles/dim light
+            inputSize: 320,      // Higher resolution for better accuracy
+            scoreThreshold: 0.4  // Detects faces even in dim morning light
           }))
           .withFaceExpressions();
 
         if (detections?.length > 0 && detections[0].expressions) {
           const expressions = detections[0].expressions;
+          // Find the emotion with the highest probability
           const best = (Object.entries(expressions) as [string, number][])
             .reduce((a, b) => (a[1] > b[1] ? a : b));
             
@@ -137,15 +134,15 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
           setDetectionActive(false);
         }
       } catch (err) {
-        console.error('🎭 Emotion Detection Failed:', err); // 🔍 Reveals missing models or WebGL issues
+        console.error('Emotion Detection Failed:', err);
         setDetectionActive(false);
       }
-    }, 500);
+    }, 500); // Analysis runs every 500ms
 
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [modelsLoaded]);
 
-  // ── Submit ──
+  // ── 4. Submit Logic ──
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (activeQuestions.length === 0 || error) return;
@@ -157,8 +154,8 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
       setActiveQuestions(next);
       setCompletedCount(c => c + 1);
       setAnswer('');
-      setError('');
       if (next.length === 0) {
+        // Pass the full mood history and the final emotion back to the dashboard summary
         onComplete(Math.floor((Date.now() - startTime) / 1000), [...moodHistory, emotionRef.current]);
       }
     } else {
@@ -170,9 +167,8 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
       }, 1500);
     }
   };
-
-  if (activeQuestions.length === 0) return null;
-
+  
+  /* Rest of the UI remains the same as your provided code */
   return (
     <div
       className="min-h-screen text-[#e5e5e5] font-mono transition-colors duration-700"
