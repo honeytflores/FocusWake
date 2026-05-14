@@ -15,22 +15,19 @@ interface AlarmChallengeProps {
 }
 
 // ─── Emotion config ───────────────────────────────────────────────────────────
-const TARGET_EMOTIONS = ['angry', 'fearful', 'disgusted', 'sad'] as const;
-type TargetEmotion = typeof TARGET_EMOTIONS[number];
-
 const emotionThemes: Record<string, { color: string; bg: string; border: string; message: string; subtext: string }> = {
-  neutral:   { color: '#00d4ff', bg: 'rgba(0,212,255,0.06)',   border: 'rgba(0,212,255,0.25)',   message: 'Normal',       subtext: 'You are in your optimal zone.' },
-  angry:     { color: '#ff4d4d', bg: 'rgba(255,77,77,0.08)',   border: 'rgba(255,77,77,0.3)',    message: 'Irritability', subtext: 'Take a deep breath.' },
-  fearful:   { color: '#ffb366', bg: 'rgba(255,179,102,0.08)', border: 'rgba(255,179,102,0.3)',  message: 'Anxiety',      subtext: 'Focus on the next small step.' },
-  disgusted: { color: '#ffff66', bg: 'rgba(255,255,102,0.08)', border: 'rgba(255,255,102,0.25)', message: 'Annoyance',    subtext: 'Clear the noise and reset.' },
-  sad:       { color: '#99ff99', bg: 'rgba(153,255,153,0.08)', border: 'rgba(153,255,153,0.25)', message: 'Fatigue',      subtext: 'Rest is productive.' },
-  surprised: { color: '#00d4ff', bg: 'rgba(0,212,255,0.06)',   border: 'rgba(0,212,255,0.25)',   message: 'Normal',       subtext: 'You are in your optimal zone.' },
-  happy:     { color: '#00d4ff', bg: 'rgba(0,212,255,0.06)',   border: 'rgba(0,212,255,0.25)',   message: 'Normal',       subtext: 'You are in your optimal zone.' },
+  neutral:   { color: '#00d4ff', bg: 'rgba(0,212,255,0.05)',   border: 'rgba(0,212,255,0.2)',   message: 'State: Normal',       subtext: 'You are in your optimal productivity zone.'    },
+  angry:     { color: '#ff4d4d', bg: 'rgba(255,77,77,0.08)',   border: 'rgba(255,77,77,0.25)',  message: 'State: Irritability', subtext: 'Irritability detected. Take a deep breath.'    },
+  fearful:   { color: '#ffb366', bg: 'rgba(255,179,102,0.08)', border: 'rgba(255,179,102,0.2)', message: 'State: Anxiety',      subtext: 'Feeling anxious? Focus on the next small step.' },
+  disgusted: { color: '#ffff66', bg: 'rgba(255,255,102,0.08)', border: 'rgba(255,255,102,0.2)', message: 'State: Annoyance',    subtext: 'Clear the noise and reset your focus.'          },
+  sad:       { color: '#99ff99', bg: 'rgba(153,255,153,0.08)', border: 'rgba(153,255,153,0.2)', message: 'State: Fatigue',      subtext: 'Rest is productive. Consider a quick stretch.'  },
+  surprised: { color: '#cc99ff', bg: 'rgba(204,153,255,0.08)', border: 'rgba(204,153,255,0.2)', message: 'State: Surprise',     subtext: 'Something caught your attention!'               },
+  happy:     { color: '#ffd700', bg: 'rgba(255,215,0,0.08)',   border: 'rgba(255,215,0,0.2)',   message: 'State: Happy',        subtext: 'Great energy! Keep it up.'                      },
 };
 
 const EMOTION_ICONS: Record<string, string> = {
   neutral: '😐', angry: '😤', fearful: '😰', disgusted: '😒',
-  sad: '😴', surprised: '😐', happy: '😐',
+  sad: '😴', surprised: '😲', happy: '😊',
 };
 
 // ─── Question bank ────────────────────────────────────────────────────────────
@@ -48,14 +45,6 @@ function getFullQuestionBank(): Question[] {
     { question: "What is 10 minus 3?", answer: '7' },
     { question: "How many hours are in a full day?", answer: '24' },
   ];
-}
-
-function mapToTargetEmotion(detected: string, expressions: Record<string, number>): string {
-  const CONFIDENCE_THRESHOLD = 0.5;
-  if (TARGET_EMOTIONS.includes(detected as TargetEmotion) && expressions[detected] > CONFIDENCE_THRESHOLD) {
-    return detected;
-  }
-  return 'neutral';
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -152,9 +141,9 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
             const best = (Object.entries(expressions) as [string, number][])
               .reduce((a, b) => a[1] > b[1] ? a : b);
               
-            const mappedEmotion = mapToTargetEmotion(best[0], expressions);
+            const mappedEmotion = best[0];
             setCurrentEmotion(mappedEmotion);
-            setIsTargetEmotion(TARGET_EMOTIONS.includes(mappedEmotion as TargetEmotion));
+            setIsTargetEmotion(false);
             setMoodHistory(h => [...h.slice(-19), mappedEmotion]);
             setDetectionActive(true);
           } else {
@@ -301,16 +290,16 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
               value={answer}
               onChange={e => setAnswer(e.target.value)}
               placeholder="Type answer..."
-              disabled={!!error || !cameraReady}
+              disabled={!!error}
               className={`w-full px-6 py-4 bg-[#141419] border-2 rounded-lg text-2xl text-[#e5e5e5] focus:outline-none transition-all ${
                 error ? 'border-red-500 animate-pulse' : ''
-              } ${!cameraReady ? 'opacity-50 cursor-not-allowed' : ''}`}
+              }`}
               style={!error ? { borderColor: theme.color } : {}}
               autoFocus
             />
             <button
               type="submit"
-              disabled={!!error || !answer.trim() || !cameraReady}
+              disabled={!!error || !answer.trim()}
               className="px-12 py-4 rounded-lg text-xl font-bold w-full md:w-auto transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: theme.color, color: '#1a1a1f' }}
             >
@@ -319,10 +308,6 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
           </form>
 
           {error && <p className="text-red-400 text-sm tracking-widest uppercase animate-pulse">{error}</p>}
-          
-          {!cameraReady && !cameraError && (
-            <p className="text-[#666] text-xs">Waiting for camera access...</p>
-          )}
         </div>
       </div>
     </div>
