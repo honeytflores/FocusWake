@@ -1,4 +1,4 @@
-import { CheckCircle, RotateCcw, Zap } from 'lucide-react';
+import { RotateCcw, Zap } from 'lucide-react';
 
 interface SuccessScreenProps {
   userName: string;
@@ -31,21 +31,18 @@ export function SuccessScreen({
 
       <div className="max-w-md w-full text-center space-y-8">
 
-        {/* Success Icon */}
-        <div className="relative flex justify-center">
+       {/* Top Glow */}
+<div className="relative flex justify-center">
 
-          <div className="absolute inset-0 bg-[#4ade80]/20 blur-3xl rounded-full" />
+  <div className="absolute w-40 h-40 bg-[#4ade80]/10 blur-3xl rounded-full" />
 
-          <div className="relative w-24 h-24 rounded-2xl bg-[#1f1f27] border border-[#4ade80]/30 flex items-center justify-center shadow-2xl">
+  <div className="relative w-28 h-28 rounded-3xl bg-gradient-to-br from-[#1f1f27] to-[#16161c] border border-[#4ade80]/20 shadow-2xl backdrop-blur-xl flex items-center justify-center">
 
-            <CheckCircle
-              size={48}
-              className="text-[#4ade80]"
-            />
+    <div className="w-4 h-4 rounded-full bg-[#4ade80] animate-pulse shadow-[0_0_25px_rgba(74,222,128,0.8)]" />
 
-          </div>
+  </div>
 
-        </div>
+</div>
 
         {/* Header */}
         <div className="space-y-4">
