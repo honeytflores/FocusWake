@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import * as faceapi from '@vladmandic/face-api';
 import { ProgressStepper } from './ProgressStepper';
 
-// ─── Types & Constants ────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 interface Question {
   question: string;
   answer: string;
@@ -14,14 +14,15 @@ interface AlarmChallengeProps {
   modelsLoaded: boolean;
 }
 
-const emotionThemes: Record<string, { color: string; bg: string; border: string; message: string; subtext: string }> = {
-  neutral:   { color: '#00d4ff', bg: 'rgba(0,212,255,0.06)',   border: 'rgba(0,212,255,0.25)',   message: 'State: Normal',       subtext: 'You are in your optimal productivity zone.' },
-  angry:     { color: '#ff4d4d', bg: 'rgba(255,77,77,0.08)',   border: 'rgba(255,77,77,0.3)',    message: 'State: Irritability', subtext: 'Irritability detected. Take a deep breath.' },
-  fearful:   { color: '#ffb366', bg: 'rgba(255,179,102,0.08)', border: 'rgba(255,179,102,0.3)',  message: 'State: Anxiety',      subtext: 'Feeling anxious? Focus on the next small step.' },
-  disgusted: { color: '#ffff66', bg: 'rgba(255,255,102,0.08)', border: 'rgba(255,255,102,0.25)', message: 'State: Annoyance',    subtext: 'Clear the noise and reset your focus.' },
-  sad:       { color: '#99ff99', bg: 'rgba(153,255,153,0.08)', border: 'rgba(153,255,153,0.25)', message: 'State: Fatigue',      subtext: 'Rest is productive. Consider a quick stretch.' },
-  surprised: { color: '#cc99ff', bg: 'rgba(204,153,255,0.08)', border: 'rgba(204,153,255,0.2)',  message: 'State: Surprise',     subtext: 'Something caught your attention!' },
-  happy:     { color: '#ffd700', bg: 'rgba(255,215,0,0.08)',   border: 'rgba(255,215,0,0.2)',    message: 'State: Happy',        subtext: 'Great energy! Keep it up.' },
+// ─── Constants & Configuration ────────────────────────────────────────────────
+const EMOTION_CONFIG: Record<string, { color: string; bg: string; icon: string; msg: string; sub: string }> = {
+  neutral:   { color: '#00d4ff', bg: 'rgba(0,212,255,0.06)',   icon: '😐', msg: 'State: Normal',       sub: 'You are in your optimal productivity zone.' },
+  angry:     { color: '#ff4d4d', bg: 'rgba(255,77,77,0.08)',   icon: '😤', msg: 'State: Irritability', sub: 'Irritability detected. Take a deep breath.' },
+  fearful:   { color: '#ffb366', bg: 'rgba(255,179,102,0.08)', icon: '😰', msg: 'State: Anxiety',      sub: 'Feeling anxious? Focus on the next small step.' },
+  disgusted: { color: '#ffff66', bg: 'rgba(255,255,102,0.08)', icon: '😒', msg: 'State: Annoyance',    sub: 'Clear the noise and reset your focus.' },
+  sad:       { color: '#99ff99', bg: 'rgba(153,255,153,0.08)', icon: '😴', msg: 'State: Fatigue',      sub: 'Rest is productive. Consider a quick stretch.' },
+  surprised: { color: '#cc99ff', bg: 'rgba(204,153,255,0.08)', icon: '😲', msg: 'State: Surprise',     sub: 'Something caught your attention!' },
+  happy:     { color: '#ffd700', bg: 'rgba(255,215,0,0.08)',   icon: '😊', msg: 'State: Happy',        sub: 'Great energy! Keep it up.' },
 };
 
 const getQuestions = (): Question[] => {
@@ -41,12 +42,10 @@ const getQuestions = (): Question[] => {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps) {
-  // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
   const emotionRef = useRef('neutral');
   const errorTimer = useRef<NodeJS.Timeout | null>(null);
 
-  // State
   const [questions, setQuestions] = useState<Question[]>([]);
   const [status, setStatus] = useState({
     answer: '',
@@ -59,10 +58,10 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
 
   const theme = EMOTION_CONFIG[mood.current] || EMOTION_CONFIG.neutral;
 
-  // Initialize Questions
+  // 1. Init Questions
   useEffect(() => setQuestions(getQuestions()), []);
 
-  // Camera Setup
+  // 2. Camera Setup
   useEffect(() => {
     let stream: MediaStream | null = null;
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
@@ -70,12 +69,12 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
         stream = s;
         if (videoRef.current) videoRef.current.srcObject = s;
       })
-      .catch(() => setCamera(prev => ({ ...prev, error: 'Camera unavailable' })));
+      .catch(() => setCamera(prev => ({ ...prev, error: 'Camera access denied' })));
 
     return () => stream?.getTracks().forEach(t => t.stop());
   }, []);
 
-  // Detection Loop
+  // 3. Detection Loop (Including Happy & Surprised)
   useEffect(() => {
     if (!modelsLoaded) return;
 
@@ -84,12 +83,14 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
       if (!video || video.readyState < 2) return;
 
       try {
-        const result = await faceapi.detectSingleFace(video, 
+        const result = await faceapi.detectSingleFace(
+          video, 
           new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 })
         ).withFaceExpressions();
 
         if (result) {
-          const [bestEmotion] = Object.entries(result.expressions).reduce((a, b) => a[1] > b[1] ? a : b);
+          const [bestEmotion] = Object.entries(result.expressions).reduce((a, b) => (a[1] > b[1] ? a : b));
+          
           emotionRef.current = bestEmotion;
           setMood(prev => ({
             current: bestEmotion,
@@ -99,13 +100,15 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
         } else {
           setCamera(prev => ({ ...prev, active: false }));
         }
-      } catch (e) { console.error(e); }
+      } catch (e) {
+        console.error("Detection Error:", e);
+      }
     }, 500);
 
     return () => clearInterval(interval);
   }, [modelsLoaded]);
 
-  // Handlers
+  // 4. Submit Logic
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (status.error || !status.answer.trim()) return;
@@ -121,9 +124,9 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
         setStatus(prev => ({ ...prev, answer: '', completed: prev.completed + 1 }));
       }
     } else {
-      setStatus(prev => ({ ...prev, error: 'Incorrect! Retrying...' }));
+      setStatus(prev => ({ ...prev, error: 'Incorrect! Re-sequencing...' }));
       errorTimer.current = setTimeout(() => {
-        setQuestions(q => [...q.slice(1), q[0]]);
+        setQuestions(q => [...q.slice(1), q[0]]); // Move failed question to end
         setStatus(prev => ({ ...prev, answer: '', error: '' }));
       }, 1500);
     }
@@ -143,7 +146,11 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
             <div className={`absolute top-4 left-4 text-[10px] px-2 py-0.5 rounded-full uppercase font-bold tracking-tighter ${camera.active ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/10 text-white/30'}`}>
               {camera.active ? '● Live' : '○ Standby'}
             </div>
-            {camera.error && <div className="absolute inset-0 flex items-center justify-center bg-black/80 text-[10px] text-red-400 uppercase">{camera.error}</div>}
+            {camera.error && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/80 text-[10px] text-red-400 uppercase p-4 text-center">
+                {camera.error}
+              </div>
+            )}
           </div>
 
           <div className="p-6 flex-1 flex flex-col justify-between">
@@ -163,7 +170,7 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
 
             <section>
               <p className="text-[9px] uppercase tracking-widest mb-3 opacity-30">Pulse History</p>
-              <div className="flex gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
                 {mood.history.map((m, i) => (
                   <span key={i} className="text-lg opacity-40 hover:opacity-100 transition-opacity" title={m}>
                     {EMOTION_CONFIG[m]?.icon || '😐'}
@@ -191,7 +198,7 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
                   value={status.answer}
                   disabled={!!status.error}
                   onChange={e => setStatus(prev => ({ ...prev, answer: e.target.value }))}
-                  placeholder={questions[0].placeholder || "Type here..."}
+                  placeholder={questions[0].placeholder || "Type answer..."}
                   className={`w-full bg-white/5 border-2 rounded-xl py-5 px-8 text-2xl text-center transition-all ${status.error ? 'border-red-500/50 scale-[0.98]' : 'border-white/10 focus:border-cyan-500/50'}`}
                   style={!status.error ? { borderColor: `${theme.color}40` } : {}}
                 />
@@ -199,13 +206,19 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
                   type="submit"
                   disabled={!!status.error || !status.answer.trim()}
                   className="w-full py-4 rounded-xl font-bold uppercase tracking-widest text-sm transition-all active:scale-95 disabled:opacity-20"
-                  style={{ backgroundColor: theme.color, color: '#111' }}>
+                  style={{ backgroundColor: theme.color, color: '#1a1a1f' }}>
                   Verify Entry
                 </button>
               </form>
 
-              {status.error && <p className="text-red-400 text-xs uppercase tracking-tighter animate-pulse">{status.error}</p>}
-              <p className="text-[10px] text-white/20 uppercase tracking-[0.2em]">{status.completed} / 5 Systems Cleared</p>
+              {status.error && (
+                <p className="text-red-400 text-xs uppercase tracking-tighter animate-pulse">
+                  {status.error}
+                </p>
+              )}
+              <p className="text-[10px] text-white/20 uppercase tracking-[0.2em]">
+                {status.completed} / 5 Systems Cleared
+              </p>
             </div>
           </div>
         </main>
