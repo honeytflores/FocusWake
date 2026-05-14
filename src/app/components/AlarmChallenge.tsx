@@ -128,8 +128,9 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
       if (intervalRef.current) clearInterval(intervalRef.current);
       
       intervalRef.current = setInterval(async () => {
-        if (!videoRef.current || !modelsLoaded || !cameraReady) return;
-        if (videoRef.current.paused || videoRef.current.ended) return;
+        // Use videoRef directly — no cameraReady state check (stale closure fix)
+        if (!videoRef.current || !modelsLoaded) return;
+        if (videoRef.current.paused || videoRef.current.ended || videoRef.current.readyState < 2) return;
         
         try {
           const detections = await faceapi
@@ -212,103 +213,156 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
 
   return (
     <div
-      className="min-h-screen text-[#e5e5e5] flex flex-col items-center justify-center p-8 font-mono transition-colors duration-1000"
-      style={{ backgroundColor: '#1a1a1f', backgroundImage: `radial-gradient(ellipse at 50% 0%, ${theme.bg} 0%, transparent 70%)` }}
+      className="min-h-screen text-[#e5e5e5] font-mono transition-colors duration-700"
+      style={{
+        backgroundColor: '#1a1a1f',
+        backgroundImage: `radial-gradient(ellipse at 50% 0%, ${theme.bg} 0%, transparent 60%)`,
+      }}
     >
-      <div className="w-full max-w-3xl">
-        
-        {/* ── Camera / Emotion Banner ── */}
-        <div className={`w-full mb-10 rounded-2xl overflow-hidden border transition-all duration-700 ${isTargetEmotion ? 'ring-2 ring-offset-2 ring-offset-[#1a1a1f]' : ''}`}
-          style={{ borderColor: theme.border, backgroundColor: theme.bg }}
-        >
-          <div className="flex items-stretch">
-            <div className="relative w-36 shrink-0 bg-black">
-              {cameraError ? (
-                <div className="w-full h-full flex flex-col items-center justify-center text-[#ff6b6b] min-h-[96px] p-2 text-center">
-                  <span className="text-[10px] uppercase tracking-wider mb-1">⚠️ {cameraError}</span>
-                  <button 
-                    onClick={handleEnableCamera}
-                    className="text-[10px] px-2 py-1 bg-[#333] rounded hover:bg-[#444] transition"
-                  >
-                    Retry Camera
-                  </button>
-                </div>
-              ) : cameraReady ? (
-                <>
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover"
-                    style={{ transform: 'scaleX(-1)', minHeight: 96 }}
-                  />
-                  {/* Detection status indicator */}
-                  <div className={`absolute bottom-1 right-1 text-[9px] px-1.5 py-0.5 rounded ${detectionActive ? 'bg-green-500/20 text-green-300' : 'bg-yellow-500/20 text-yellow-300'}`}>
-                    {detectionActive ? '● Detecting' : '○ Waiting'}
-                  </div>
-                </>
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-[#666] min-h-[96px]">
-                  <span className="text-[10px] uppercase tracking-widest">Initializing camera...</span>
-                </div>
-              )}
-            </div>
+      <div className="flex min-h-screen">
 
-            <div className="flex-1 px-5 py-4 flex flex-col justify-center">
-              <div className="flex items-center gap-2 mb-1">
-                <span className={`w-2 h-2 rounded-full ${isTargetEmotion ? 'animate-pulse' : ''}`} style={{ backgroundColor: theme.color }} />
-                <span className="text-[10px] uppercase tracking-[0.2em] font-bold" style={{ color: theme.color }}>
-                  {detectionActive ? 'Live Analysis' : 'Standby'}
+        {/* ── LEFT: Camera + Emotion Analysis ── */}
+        <div
+          className="w-72 shrink-0 flex flex-col border-r transition-colors duration-700"
+          style={{ borderColor: theme.border, backgroundColor: `${theme.bg}` }}
+        >
+          {/* Camera feed */}
+          <div className="relative bg-black" style={{ aspectRatio: '3/4' }}>
+            {cameraError ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
+                <span className="text-2xl mb-2">📷</span>
+                <span className="text-[10px] text-[#ff6b6b] uppercase tracking-wider mb-3">{cameraError}</span>
+                <button
+                  onClick={handleEnableCamera}
+                  className="text-[10px] px-3 py-1.5 bg-[#222] border border-[#444] rounded hover:bg-[#333] transition"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <>
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                  style={{ transform: 'scaleX(-1)' }}
+                />
+                {!cameraReady && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/70">
+                    <span className="text-[10px] text-[#666] uppercase tracking-widest">Starting camera…</span>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Detection pill */}
+            <div className={`absolute top-3 left-3 text-[9px] px-2 py-1 rounded-full font-bold uppercase tracking-wider transition-colors ${
+              detectionActive ? 'bg-green-500/20 text-green-300' : 'bg-[#222]/80 text-[#555]'
+            }`}>
+              {detectionActive ? '● Live' : '○ Waiting'}
+            </div>
+          </div>
+
+          {/* Emotion readout */}
+          <div className="flex-1 p-5 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <span
+                  className="w-2 h-2 rounded-full animate-pulse shrink-0"
+                  style={{ backgroundColor: theme.color }}
+                />
+                <span className="text-[10px] uppercase tracking-[0.15em] font-bold" style={{ color: theme.color }}>
+                  Live Analysis
                 </span>
               </div>
-              <div className="flex items-baseline gap-3">
-                <span className="text-3xl leading-none">{EMOTION_ICONS[currentEmotion] ?? '😐'}</span>
+
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-5xl leading-none">{EMOTION_ICONS[currentEmotion] ?? '😐'}</span>
                 <div>
-                  <p className="font-bold text-lg leading-tight" style={{ color: theme.color }}>{theme.message}</p>
-                  <p className="text-xs text-[#666677] mt-0.5">{theme.subtext}</p>
+                  <p className="font-bold text-base leading-tight" style={{ color: theme.color }}>
+                    {theme.message}
+                  </p>
+                  <p className="text-[11px] mt-1 leading-snug" style={{ color: `${theme.color}99` }}>
+                    {theme.subtext}
+                  </p>
                 </div>
+              </div>
+            </div>
+
+            {/* Mood history */}
+            {moodHistory.length > 0 && (
+              <div>
+                <p className="text-[9px] uppercase tracking-widest mb-2" style={{ color: `${theme.color}55` }}>
+                  Session history
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {moodHistory.slice(-12).map((m, i) => (
+                    <span
+                      key={i}
+                      title={emotionThemes[m]?.message ?? m}
+                      className="text-lg leading-none"
+                      style={{ opacity: 0.2 + (i / 12) * 0.8 }}
+                    >
+                      {EMOTION_ICONS[m] ?? '😐'}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── RIGHT: Progress + Question + Form ── */}
+        <div className="flex-1 flex flex-col items-center justify-center p-10">
+          <div className="w-full max-w-2xl">
+
+            {/* Progress stepper */}
+            <div className="mb-14">
+              <ProgressStepper currentStep={completedCount} totalSteps={5} />
+            </div>
+
+            {/* Question */}
+            <div className="text-center space-y-8">
+              <h1 className="text-4xl md:text-5xl text-[#e5e5e5] leading-tight min-h-[120px]">
+                {activeQuestions[0].question}
+              </h1>
+
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <input
+                  type="text"
+                  value={answer}
+                  onChange={e => setAnswer(e.target.value)}
+                  placeholder={activeQuestions[0].placeholder || 'Type answer...'}
+                  disabled={!!error}
+                  className={`w-full px-6 py-4 bg-[#141419] border-2 rounded-lg text-2xl text-[#e5e5e5] focus:outline-none transition-all ${
+                    error ? 'border-red-500 animate-pulse' : ''
+                  }`}
+                  style={!error ? { borderColor: theme.color } : {}}
+                  autoFocus
+                />
+                <button
+                  type="submit"
+                  disabled={!!error || !answer.trim()}
+                  className="px-12 py-4 rounded-lg text-xl font-bold w-full md:w-auto transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                  style={{ backgroundColor: theme.color, color: '#1a1a1f' }}
+                >
+                  Verify [Enter]
+                </button>
+              </form>
+
+              {error && (
+                <p className="text-red-400 text-sm tracking-widest uppercase animate-pulse">{error}</p>
+              )}
+
+              <div className="text-[#555566] text-xs tracking-widest uppercase">
+                {completedCount} of 5 Completed
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── Progress ── */}
-        <div className="mb-16">
-          <ProgressStepper currentStep={completedCount} totalSteps={5} />
-        </div>
-
-        {/* ── Question Form ── */}
-        <div className="text-center space-y-8">
-          <h1 className="text-4xl text-[#e5e5e5] leading-tight min-h-[100px]">
-            {activeQuestions[0].question}
-          </h1>
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <input
-              type="text"
-              value={answer}
-              onChange={e => setAnswer(e.target.value)}
-              placeholder="Type answer..."
-              disabled={!!error}
-              className={`w-full px-6 py-4 bg-[#141419] border-2 rounded-lg text-2xl text-[#e5e5e5] focus:outline-none transition-all ${
-                error ? 'border-red-500 animate-pulse' : ''
-              }`}
-              style={!error ? { borderColor: theme.color } : {}}
-              autoFocus
-            />
-            <button
-              type="submit"
-              disabled={!!error || !answer.trim()}
-              className="px-12 py-4 rounded-lg text-xl font-bold w-full md:w-auto transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ backgroundColor: theme.color, color: '#1a1a1f' }}
-            >
-              Verify [Enter]
-            </button>
-          </form>
-
-          {error && <p className="text-red-400 text-sm tracking-widest uppercase animate-pulse">{error}</p>}
-        </div>
       </div>
     </div>
   );
