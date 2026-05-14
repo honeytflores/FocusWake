@@ -14,14 +14,14 @@ interface AlarmChallengeProps {
   modelsLoaded: boolean;
 }
 
-const EMOTION_CONFIG: Record<string, any> = {
-  neutral:   { color: '#00d4ff', icon: '😐', msg: 'State: Normal', sub: 'Optimal productivity zone.' },
-  angry:     { color: '#ff4d4d', icon: '😤', msg: 'State: Irritability', sub: 'Deep breaths required.' },
-  fearful:   { color: '#ffb366', icon: '😰', msg: 'State: Anxiety', sub: 'Focus on the next small step.' },
-  disgusted: { color: '#ffff66', icon: '😒', msg: 'State: Annoyance', sub: 'Clear the noise.' },
-  sad:       { color: '#99ff99', icon: '😴', msg: 'State: Fatigue', sub: 'Consider a quick stretch.' },
-  surprised: { color: '#cc99ff', icon: '😲', msg: 'State: Surprise', sub: 'Something caught your eye!' },
-  happy:     { color: '#ffd700', icon: '😊', msg: 'State: Happy', sub: 'Great energy! Keep it up.' },
+const emotionThemes: Record<string, { color: string; bg: string; border: string; message: string; subtext: string }> = {
+  neutral:   { color: '#00d4ff', bg: 'rgba(0,212,255,0.06)',   border: 'rgba(0,212,255,0.25)',   message: 'State: Normal',       subtext: 'You are in your optimal productivity zone.' },
+  angry:     { color: '#ff4d4d', bg: 'rgba(255,77,77,0.08)',   border: 'rgba(255,77,77,0.3)',    message: 'State: Irritability', subtext: 'Irritability detected. Take a deep breath.' },
+  fearful:   { color: '#ffb366', bg: 'rgba(255,179,102,0.08)', border: 'rgba(255,179,102,0.3)',  message: 'State: Anxiety',      subtext: 'Feeling anxious? Focus on the next small step.' },
+  disgusted: { color: '#ffff66', bg: 'rgba(255,255,102,0.08)', border: 'rgba(255,255,102,0.25)', message: 'State: Annoyance',    subtext: 'Clear the noise and reset your focus.' },
+  sad:       { color: '#99ff99', bg: 'rgba(153,255,153,0.08)', border: 'rgba(153,255,153,0.25)', message: 'State: Fatigue',      subtext: 'Rest is productive. Consider a quick stretch.' },
+  surprised: { color: '#cc99ff', bg: 'rgba(204,153,255,0.08)', border: 'rgba(204,153,255,0.2)',  message: 'State: Surprise',     subtext: 'Something caught your attention!' },
+  happy:     { color: '#ffd700', bg: 'rgba(255,215,0,0.08)',   border: 'rgba(255,215,0,0.2)',    message: 'State: Happy',        subtext: 'Great energy! Keep it up.' },
 };
 
 const getQuestions = (): Question[] => {
