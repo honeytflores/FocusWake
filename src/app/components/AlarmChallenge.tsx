@@ -102,29 +102,33 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
       streamRef.current?.getTracks().forEach(t => t.stop());
       streamRef.current = null;
     };
-  }, []); // ← empty deps: runs once on mount only
+  }, []);
 
-  // ── 3. Detection — starts when modelsLoaded becomes true ──
+  // ── 3. Detection — UPDATED with better accuracy & error handling ──
   useEffect(() => {
     if (!modelsLoaded) return;
-
     if (intervalRef.current) clearInterval(intervalRef.current);
 
     intervalRef.current = setInterval(async () => {
       const video = videoRef.current;
       if (!video || !modelsRef.current) return;
-      // readyState 2 = HAVE_CURRENT_DATA, video has data to display
-      if (video.readyState < 2 || video.paused || video.ended) return;
+      
+      // Ensure video is actually streaming and has valid dimensions
+      if (video.readyState < 2 || video.paused || video.ended || video.videoWidth === 0) return;
 
       try {
         const detections = await faceapi
-          .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
+          .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ 
+            inputSize: 320,      // ⬆️ Larger input improves expression accuracy
+            scoreThreshold: 0.3  // ⬇️ Lower threshold catches faces at slight angles/dim light
+          }))
           .withFaceExpressions();
 
-        if (detections?.length > 0) {
+        if (detections?.length > 0 && detections[0].expressions) {
           const expressions = detections[0].expressions;
           const best = (Object.entries(expressions) as [string, number][])
             .reduce((a, b) => (a[1] > b[1] ? a : b));
+            
           emotionRef.current = best[0];
           setCurrentEmotion(best[0]);
           setMoodHistory(h => [...h.slice(-19), best[0]]);
@@ -132,13 +136,14 @@ export function AlarmChallenge({ onComplete, modelsLoaded }: AlarmChallengeProps
         } else {
           setDetectionActive(false);
         }
-      } catch {
+      } catch (err) {
+        console.error('🎭 Emotion Detection Failed:', err); // 🔍 Reveals missing models or WebGL issues
         setDetectionActive(false);
       }
     }, 500);
 
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [modelsLoaded]); // only re-runs if models flip from false → true
+  }, [modelsLoaded]);
 
   // ── Submit ──
   const handleSubmit = (e: React.FormEvent) => {
